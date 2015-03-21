@@ -31,7 +31,7 @@ void Serial_test()
   delay(1000);
     
   for (int i=0; i <= 5; i++){
-    Serial.print("It is work!");
+    Serial.println("It is work!");
     delay(500);
   }
   

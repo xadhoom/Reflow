@@ -93,6 +93,7 @@ begin:
       GLCD.ClearScreen();
       
       /** Begin of reflow steps **/
+      reset_clock();
       res=preheating();
       if(res) {
         goto begin;

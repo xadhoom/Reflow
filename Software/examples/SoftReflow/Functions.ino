@@ -1,4 +1,15 @@
 
+int __delta = 0;
+
+void reset_clock() {
+  __delta = seconds();
+}
+
+int clock() {
+  int nowsecs = seconds();
+  return nowsecs - __delta;
+}
+
 void intro(int timer) { // Introduction with version of firmware
   GLCD.DrawCircle( 15, 30, 5); 
   GLCD.DrawCircle( 112, 30, 5);
@@ -334,7 +345,7 @@ int preheating()
     
      
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconds());
+    GLCD.print(clock());
     GLCD.CursorToXY(50,15);
     GLCD.print("sec");
      
@@ -388,7 +399,7 @@ int soaking()
     temp_cible = temp_cible + ((soak_temp - preheat_temp) * 10 / soak_time);
     
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconds());
+    GLCD.print(clock());
     GLCD.CursorToXY(50,15);
     GLCD.print("sec");
     
@@ -443,7 +454,7 @@ int reflow()
     Relay_on();
  
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconds());
+    GLCD.print(clock());
     GLCD.CursorToXY(50,15);
     GLCD.print("sec");
     
@@ -475,7 +486,7 @@ int reflow()
     temp_current = MAX6675_read_flow_temp(5);
     
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconds());
+    GLCD.print(clock());
     GLCD.CursorToXY(50,15);
     GLCD.print("sec");
     
@@ -534,7 +545,7 @@ int cooling()
       Buzzer_on();
       
       GLCD.CursorToXY(12,15);
-      GLCD.print(seconds());
+      GLCD.print(clock());
       GLCD.CursorToXY(50,15);
       GLCD.print("sec");
 
@@ -557,7 +568,7 @@ int cooling()
     temp_current = MAX6675_read_flow_temp(5);
     
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconds());
+    GLCD.print(clock());
     GLCD.CursorToXY(50,15);
     GLCD.print("sec");
 
