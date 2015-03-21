@@ -28,10 +28,32 @@ void MAX6675_init()
   digitalWrite(SS, HIGH);
 }
 
+int MAX6675_read_flow_temp(int samples) {
+  /* read a flow-related temperature.
+   * if is more than 500°C returns -1,
+   * which is an error.
+   * Mainly to avoid wrong reads on unconnected sensors
+   * and to use correct types between functions
+  */
+  int itemp;
+  int maxtemp = 500;
+  int mintemp = 0;
+  float ftemp;
+    
+  ftemp = MAX6675_read_float_temp(samples);
+  
+  itemp = (int) ftemp;
+  
+  if(itemp>=maxtemp || itemp < mintemp) {
+    return -1;
+  }
+  return itemp;
+}
+
 /****************************************/
-/*        MAX6675_read_temp()           */
+/*      MAX6675_read_float_temp()       */
 /****************************************/
-float MAX6675_read_temp(int samples)
+float MAX6675_read_float_temp(int samples)
 {
   int value = 0;
   int error_tc = 0;
@@ -64,7 +86,7 @@ float MAX6675_read_temp(int samples)
   }
   
   value = value/samples;  // Divide the value by the number of samples to get the average
-  
+   
   /* 
      Keep in mind that the temp that was just read is on the digital scale
      from 0˚C to 1023.75˚C at a resolution of 2^12.  We now need to convert
@@ -75,11 +97,8 @@ float MAX6675_read_temp(int samples)
    
   value = value + OFFSET;  // Apply the offset for Max6675
   
-  // °F or °C
-  if(UNIT == 0)         temp = ((value*0.25) * (9.0/5.0)) + 32.0;  // Convert value to ˚F (ensure proper floats!)
-  else if(UNIT == 1)    temp = (value*0.25);  // Multiply the value by 0.25 to get temp in ˚C
-  
-  
+  temp = (value*0.25);  // Multiply the value by 0.25 to get temp in ˚C
+
   /* Output -1 if there is a TC error, otherwise return 'temp' */
   if(error_tc != 0) {
     return -1; 
@@ -102,7 +121,7 @@ void MAX6675_test()
   GLCD.ClearScreen();
   
   for (int i=0; i <= 30; i++){
-    temperature = MAX6675_read_temp(5);
+    temperature = MAX6675_read_float_temp(5);
     GLCD.CursorToXY(2,25);
     GLCD.print("Are you cold? :)");
     GLCD.CursorToXY(2,45);

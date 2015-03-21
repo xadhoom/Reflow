@@ -74,7 +74,7 @@ void set() {
 
 }             
             
-void settings2 (){ // MENU STETTINGS
+void settings2 (){ // MENU SETTINGS
   GLCD.DrawRect(GLCD.CenterX - 26, 3, 50, 10); // posX , posY , widht , height 
   GLCD.DrawRect(GLCD.CenterX - 27, 2, 52, 12); // double 
   GLCD.CursorToXY(40,5);
@@ -88,7 +88,7 @@ void settings2 (){ // MENU STETTINGS
   GLCD.CursorToXY(12,45);
   GLCD.print("Cooling");
   GLCD.CursorToXY(12,55);
-  GLCD.print("Back");}
+  GLCD.print("Back and save");}
   
 //Each select of the settings MENU
   
@@ -119,7 +119,7 @@ void settings2select5(){
 }
 
 
-   //include all values pre-saved on EEPROM into RAM  
+//include all values pre-saved on EEPROM into RAM  
 void EEPROMtoRAM(){
    soak_temp = EEPROM.read(SOAK_TEMP_MSB_ADDR) + EEPROM.read(SOAK_TEMP_LSB_ADDR);
    soak_time = EEPROM.read(SOAK_TIME_MSB_ADDR) + EEPROM.read(SOAK_TIME_LSB_ADDR);
@@ -133,8 +133,9 @@ void EEPROMtoRAM(){
    cooling_temp = EEPROM.read(COOLING_TEMP_MSB_ADDR) + EEPROM.read(COOLING_TEMP_LSB_ADDR);
    cooling_deg_max = EEPROM.read(COOLING_DEG_MAX_MSB_ADDR) + EEPROM.read(COOLING_DEG_MAX_LSB_ADDR);
   }
+
    
-   // Save the values into EEPROM
+// Save the values into EEPROM
 void RAMtoEEPROM(){
     if(soak_temp > 255){
       EEPROM.write(SOAK_TEMP_LSB_ADDR,255); soak_temp >> 8;
@@ -245,9 +246,9 @@ void setPreheat(){
           GLCD.CursorToXY(58,55);
           GLCD.print("OK");
           GLCD.CursorToXY(95,40);
-          GLCD.print("°C/sec");
+          GLCD.print("°C");
           GLCD.CursorToXY(95,30);
-          GLCD.print("sec");
+          GLCD.print("°C/sec");
 }
               
               
@@ -291,9 +292,25 @@ void setCooling(){
           GLCD.CursorToXY(58,55);
           GLCD.print("OK");
           GLCD.CursorToXY(95,40);
-          GLCD.print("°C/sec");
+          GLCD.print("°C");
           GLCD.CursorToXY(95,30);
-          GLCD.print("sec");
+          GLCD.print("°C/sec");
+}
+
+int check_cancel() {
+  if (digitalRead(LEFT) == 0) {
+    Buzzer_off();
+    Relay_off();
+    GLCD.ClearScreen();
+    GLCD.CursorToXY(12,25);
+    GLCD.print("Reflow Cancelled !");
+    while (digitalRead(OK) != 0) {
+      delay(200);
+    }
+    return -1;
+  }
+  return 0;
+    
 }
 
 /*****************************************************
@@ -302,10 +319,9 @@ void setCooling(){
 /*******************************
 *        Preheating            *
 *******************************/
-void preheating() 
+int preheating() 
 { 
-  unsigned int temp_current = 0;
-  unsigned int temp_consigne = 0;
+  int temp_current = 0;
   unsigned int time_current = 0;
   
   GLCD.ClearScreen();
@@ -313,36 +329,42 @@ void preheating()
   /* chauffage avec regulation (3°c/s max) */
   while (temp_current < preheat_temp) 
   { 
-    time_current = seconde();    
-    temp_current = MAX6675_read_temp(5);
+    time_current = seconds();    
+    temp_current = MAX6675_read_flow_temp(5);
     
      
-     GLCD.CursorToXY(12,15);
-     GLCD.print(seconde());
-     GLCD.CursorToXY(50,15);
-     GLCD.print("sec");    
-     GLCD.CursorToXY(12,25);
-     GLCD.print(MAX6675_read_temp(1));   
-     GLCD.CursorToXY(50,25);
-     GLCD.print("->");   
-     GLCD.CursorToXY(65,25);
-     GLCD.print(preheat_temp);    
-     GLCD.CursorToXY(95,25);
-     GLCD.print("°C/sec");
-     GLCD.CursorToXY(12,35);
-     GLCD.print("Preheating");   
+    GLCD.CursorToXY(12,15);
+    GLCD.print(seconds());
+    GLCD.CursorToXY(50,15);
+    GLCD.print("sec");
+     
+    GLCD.CursorToXY(12,25);
+    GLCD.print(temp_current);   
+    GLCD.CursorToXY(50,25);
+    GLCD.print("->");   
+    GLCD.CursorToXY(65,25);
+    GLCD.print(preheat_temp);    
+    GLCD.CursorToXY(95,25);
+    GLCD.print("°C");
+
+    GLCD.CursorToXY(12,35);
+    GLCD.print("Preheating...");   
     
     /* regulation de la temperature tous les 200ms */
-    while (time_current == seconde()) 
-    {     
-        if ( (MAX6675_read_temp(5) < (temp_current + preheat_deg_max)) ) 
+    while (time_current == seconds()) 
+    {   
+        if(check_cancel()) {
+          return -1;
+        }  
+
+        if ( (MAX6675_read_flow_temp(5) < (temp_current + preheat_deg_max)) ) {
             Relay_on();    
-        else 
+        } else {
             Relay_off();
-        
+        }
         delay(200);
     }      
-  } 
+  }
   Relay_off();
 } 
 
@@ -350,44 +372,50 @@ void preheating()
 /**************************
 *      Soaking            *
 **************************/
-void soaking() 
+int soaking() 
 { 
-  //unsigned int temp_current = 0;
   unsigned int time_current = 0;
   unsigned int countSecInit = 0;
-  unsigned int temp_cible = (preheat_temp * 10); 
+  int temp_cible = (preheat_temp * 10); 
   
   GLCD.ClearScreen();
-  countSecInit = seconde();        
+  countSecInit = seconds();        
   
   /* chauffage avec regulation  */
-  while ((seconde() - countSecInit) < soak_time) 
+  while ((seconds() - countSecInit) < soak_time) 
   { 
-    time_current = seconde();     
-    temp_cible = temp_cible + ((soak_temp - preheat_temp) *10/ soak_time);
+    time_current = seconds();     
+    temp_cible = temp_cible + ((soak_temp - preheat_temp) * 10 / soak_time);
     
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconde());
+    GLCD.print(seconds());
     GLCD.CursorToXY(50,15);
-    GLCD.print("sec");    
+    GLCD.print("sec");
+    
     GLCD.CursorToXY(12,25);
-    GLCD.print(MAX6675_read_temp(1));   
+    GLCD.print(MAX6675_read_flow_temp(1));   
     GLCD.CursorToXY(50,25);
     GLCD.print("->");   
     GLCD.CursorToXY(65,25);
     GLCD.print(soak_temp);    
     GLCD.CursorToXY(95,25);
-    GLCD.print("°C/sec");
+    GLCD.print("°C");
+
     GLCD.CursorToXY(12,35);
-    GLCD.print("Soaking");
+    GLCD.print("Soaking...");
     
     /* regulation de la temperature tous les 200ms */
-    while (time_current == seconde()) 
+    while (time_current == seconds()) 
     {  
-        if ((MAX6675_read_temp(5)*10) < temp_cible) 
+        if(check_cancel()) {
+          return -1;
+        }  
+
+        if ((MAX6675_read_flow_temp(5)*10) < temp_cible) {
             Relay_on();      
-        else 
+        } else {
             Relay_off(); 
+        }
         
         delay(200);
     }     
@@ -398,70 +426,82 @@ void soaking()
 /******************************
 *          Reflow             *
 ******************************/
-void reflow()
+int reflow()
 {
-  unsigned int temp_current = 0;
+  int temp_current = 0;
   unsigned int countSecInit = 0; 
   
   GLCD.ClearScreen();
   
   /* Tant que la temperature de refusion n'est pas atteinte, on chauffe */
-  while (temp_current < reflow_temp) 
-  {
-    temp_current = MAX6675_read_temp(5);    
+  while (temp_current < reflow_temp) {
+    if(check_cancel()) {
+      return -1;
+    }
+    
+    temp_current = MAX6675_read_flow_temp(5);    
     Relay_on();
  
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconde());
+    GLCD.print(seconds());
     GLCD.CursorToXY(50,15);
-    GLCD.print("sec");    
+    GLCD.print("sec");
+    
     GLCD.CursorToXY(12,25);
-    GLCD.print(MAX6675_read_temp(1));   
+    GLCD.print(MAX6675_read_flow_temp(1));   
     GLCD.CursorToXY(50,25);
     GLCD.print("->");   
     GLCD.CursorToXY(65,25);
     GLCD.print(reflow_temp);    
     GLCD.CursorToXY(95,25);
-    GLCD.print("°C/sec");
+    GLCD.print("°C");
+
     GLCD.CursorToXY(12,35);
-    GLCD.print("Reflow");   
-    delay(200);    
+    GLCD.print("Reflowing...");   
+    
+    delay(200);     
   }
   
-  countSecInit = seconde();        
-    
+  countSecInit = seconds();        
+
+  GLCD.ClearScreen();
+
   /* waiting for x secondes. Attente pour faire un petit palier */
-  while ((seconde() - countSecInit) < reflow_time) 
-  {
-    temp_current = MAX6675_read_temp(5);
+  while ((seconds() - countSecInit) < reflow_time) {
+    if(check_cancel()) {
+      return -1;
+    }  
+
+    temp_current = MAX6675_read_flow_temp(5);
     
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconde());
+    GLCD.print(seconds());
     GLCD.CursorToXY(50,15);
-    GLCD.print("sec");    
+    GLCD.print("sec");
+    
     GLCD.CursorToXY(12,25);
-    GLCD.print(MAX6675_read_temp(1));   
+    GLCD.print(MAX6675_read_flow_temp(1));   
     GLCD.CursorToXY(50,25);
     GLCD.print("->");   
     GLCD.CursorToXY(65,25);
     GLCD.print(reflow_temp);    
     GLCD.CursorToXY(95,25);
-    GLCD.print("°C/sec");
+    GLCD.print("°C");
+
     GLCD.CursorToXY(12,35);
-    GLCD.print("Reflow: wait "); 
+    GLCD.print("Reflow: wait for "); 
     GLCD.CursorToXY(70,35);
     GLCD.print(reflow_time);  
+
     delay(200); 
     
-    if (temp_current < reflow_temp)
-    {
+    if (temp_current < reflow_temp) {
       Relay_on(); 
+    } else {
+      Relay_off(); 
     }
-    else
-      Relay_on(); 
-      
+
     delay (200);
-    
   }      
 }
 
@@ -469,14 +509,14 @@ void reflow()
 /*********************************
 *            Cooling             *
 *********************************/
-void cooling() 
+int cooling() 
 { 
-  unsigned int temp_current = 0;
-  unsigned int temp_init = 0;
+  int temp_current = 0;
+  int temp_init = 0;
   unsigned int countSecInit = 0;
   unsigned int time_current = 0;
   
-  temp_init = MAX6675_read_temp(5);  
+  temp_init = MAX6675_read_flow_temp(5);  
   temp_current = temp_init;
   
   Relay_off(); 
@@ -486,17 +526,23 @@ void cooling()
   /* le buzzer sonne tant la porte n'est pas ouverte */
   while(temp_current >= (reflow_temp - (reflow_temp/20)))
   {
-      temp_current = MAX6675_read_temp(5);
+      if(check_cancel()) {
+        return -1;
+      }
+      
+      temp_current = MAX6675_read_flow_temp(5);
       Buzzer_on();
       
       GLCD.CursorToXY(12,15);
-      GLCD.print(seconde());
+      GLCD.print(seconds());
       GLCD.CursorToXY(50,15);
       GLCD.print("sec");
+
       GLCD.CursorToXY(12,25);
-      GLCD.print(MAX6675_read_temp(1));
+      GLCD.print(MAX6675_read_flow_temp(1));
       GLCD.CursorToXY(50,25);
-      GLCD.print("°C/sec");
+      GLCD.print("°C");
+
       GLCD.CursorToXY(12,35);
       GLCD.print("Open the door!!!!!!");   
       delay(200);
@@ -507,30 +553,32 @@ void cooling()
   
   while (temp_current > cooling_temp)
   { 
-    time_current = seconde();    
-    temp_current = MAX6675_read_temp(5);
+    time_current = seconds();    
+    temp_current = MAX6675_read_flow_temp(5);
     
     GLCD.CursorToXY(12,15);
-    GLCD.print(seconde());
+    GLCD.print(seconds());
     GLCD.CursorToXY(50,15);
     GLCD.print("sec");
+
     GLCD.CursorToXY(12,25);
-    GLCD.print(MAX6675_read_temp(1));
+    GLCD.print(MAX6675_read_flow_temp(1));
     GLCD.CursorToXY(50,25);
-    GLCD.print("°C/sec");
+    GLCD.print("°C");
+
     GLCD.CursorToXY(12,35);
     GLCD.print("Cooling");   
     delay(200);
       
     /* regulation de la temperature tous les 200ms (-3°c max/s) */
-    while (time_current == seconde())
-    { 
-        if (MAX6675_read_temp(5) < (temp_current - (cooling_deg_max)))
-        {  
-            Relay_on();      
+    while (time_current == seconds()) {
+        if(check_cancel()) {
+          return -1;
         }
-        else 
-        { 
+    
+        if (MAX6675_read_flow_temp(5) < (temp_current - (cooling_deg_max))) {  
+            Relay_on();      
+        } else  { 
             Relay_off(); 
         }
         
