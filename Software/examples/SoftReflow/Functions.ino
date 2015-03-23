@@ -377,6 +377,7 @@ int preheating()
     }      
   }
   Relay_off();
+  return 0;
 } 
 
 
@@ -430,7 +431,8 @@ int soaking()
         
         delay(200);
     }     
-  } 
+  }
+  return 0;
 }
 
 
@@ -513,7 +515,9 @@ int reflow()
     }
 
     delay (200);
-  }      
+  }
+  Relay_off(); 
+  return 0;  
 }
 
 
@@ -603,5 +607,6 @@ int cooling()
   GLCD.print("Reflow finished !");  
   
   delay(6000);
+  return 0;
 } 
 
